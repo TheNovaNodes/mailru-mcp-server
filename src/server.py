@@ -76,19 +76,16 @@ def execute_pending_action(token: str) -> str:
 # ==========================================
 
 @mcp.tool()
-def mail_read_inbox(limit: int = 10, folder: str = "INBOX") -> str:
-    """Fetch latest unread emails and threads."""
-    # Hard cap limit to prevent context blowout
-    safe_limit = min(limit, 50)
+def mail_read_inbox(days: int = 1, folder: str = "INBOX") -> str:
+    """Fetch latest emails since a given number of days (Triage)."""
     try:
-        emails = mail_client.fetch_recent_emails(safe_limit, folder)
+        emails = mail_client.read_inbox_since(days, folder)
         if not emails:
-            return "No emails found."
+            return "No emails found since the given date."
         
         result = []
         for e in emails:
-            flags = ", ".join(e['flags'])
-            result.append(f"UID: {e['uid']} | From: {e['from']} | Subject: {e['subject']}\nDate: {e['date']} | Flags: {flags}\nSnippet: {e['text'][:200]}...")
+            result.append(f"UID: {e['uid']} | From: {e['from']} | Subject: {e['subject']}\nDate: {e['date']}")
         return "\n\n".join(result)
     except Exception as e:
         return f"Error reading inbox: {e}"
@@ -113,6 +110,18 @@ def mail_search_thread(query: str, folder: str = "INBOX", limit: int = 20) -> st
         return out
     except Exception as e:
         return f"Error searching emails: {e}"
+
+@mcp.tool()
+def mail_send_draft(to_email: str, subject: str, body: str) -> str:
+    """Save a generated response to the Drafts folder (no HITL needed since it doesn't send)."""
+    try:
+        success = mail_client.save_draft(to_email, subject, body)
+        if success:
+            return f"✅ Draft saved for {to_email} with subject '{subject}'."
+        else:
+            return "❌ Failed to save draft."
+    except Exception as e:
+        return f"❌ Error saving draft: {e}"
 
 @mcp.tool()
 def mail_send_reply(to_email: str, subject: str, body: str) -> str:
