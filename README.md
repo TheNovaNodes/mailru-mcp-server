@@ -31,13 +31,15 @@ with-secret <VAULT_POINTER> --env MAILRU_APP_PASS -- python src/server.py
 
 ## 🛠️ The Absolute Tool Registry (Production Ready)
 
-### 📧 Mail (IMAP / SMTP)
+### 📧 Mail (IMAP / SMTP) Triage & Drafting
 | Tool Name | Protocol | Description | HITL Required |
 |-----------|----------|-------------|---------------|
-| `mail_read_inbox` | IMAP | Fetch latest unread emails and threads (Paginated). | ❌ No |
-| `mail_search_thread` | IMAP | Semantic and text search across mailboxes. | ❌ No |
-| `mail_send_draft` | SMTP | Save a generated reply into the Drafts folder. | ❌ No |
-| `mail_send_reply` | SMTP | Send a direct reply to a client. | 🚨 **YES** |
+| `mail_read_inbox` | IMAP | Fetch latest emails for Triage Agent (SINCE today). | ❌ No |
+| `mail_search_thread` | IMAP | Semantic search to provide context for Drafts. | ❌ No |
+| `mail_get_body` | IMAP | Extract content for AI summarization. | ❌ No |
+| `mail_triage_mark` | IMAP | Move/Mark as `To Respond`, `FYI`, or `Spam`. | ❌ No |
+| `mail_send_draft` | SMTP | Save a pre-generated AI Draft for ZavLab to review. | ❌ No |
+| `mail_send_reply` | SMTP | Send a direct reply to a client (bypass Drafts). | 🚨 **YES (R3)** |
 | `mail_send_with_attachment` | SMTP | Send email with files retrieved from WebDAV. | 🚨 **YES** |
 
 ### 🗂 Cloud Storage (WebDAV)
@@ -47,5 +49,16 @@ with-secret <VAULT_POINTER> --env MAILRU_APP_PASS -- python src/server.py
 | `dav_create_folder` | WebDAV | Scaffold a new client directory. | 🚨 **YES** |
 | `dav_upload_file` | WebDAV | Upload documents, invoices, or briefs. | 🚨 **YES** |
 | `dav_download_file` | WebDAV | Download documents to agent memory. | ❌ No |
-| `dav_delete_file` | WebDAV | Soft/Hard delete documents. | 🚨 **YES** |
+| `dav_move_file` | WebDAV | Move/Rename files across the CRM filesystem. | ⚠️ Yes (R2) |
+| `dav_delete_file` | WebDAV | Soft/Hard delete documents. | 🚨 **YES (R4)** |
 | `execute_pending_action`| Internal | Confirms and executes any HITL blocked action. | ❌ No (Agent must have token) |
+
+### 👥 CRM Contacts & Scheduling (Data Extractor & iTIP)
+| Tool Name | Protocol | Description | HITL Required |
+|-----------|----------|-------------|---------------|
+| `contact_extract_vcf` | SMTP | Generate `.vcf` and send to user for 1-click add. | ❌ No |
+| `calendar_send_itip`| SMTP | Generate `.ics` (iTIP) and send to user for 1-click accept. | ❌ No |
+
+## 🤝 Contributing (Agent Doctrine)
+- **Workflow:** GitHub Flow. Direct pushes to `master` banned.
+- **AI Delegation:** Work executed on branches prefixed with `jules/` or `agent/`.
