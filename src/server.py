@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 from src.mailru_client import MailRuClient
 from src.webdav_client import WebDAVClient
+from src.caldav_client import CalDAVClient
+from src.carddav_client import CardDAVClient
 
 # ==========================================
 # 🛑 FAIL-FAST INITIALIZATION
@@ -14,11 +16,13 @@ from src.webdav_client import WebDAVClient
 try:
     mail_client = MailRuClient()
     dav_client = WebDAVClient()
+    caldav_client = CalDAVClient()
+    carddav_client = CardDAVClient()
 except ValueError as e:
     print(f"CRITICAL STARTUP FAILURE: {e}", file=sys.stderr)
     sys.exit(1)
 
-mcp = FastMCP("Mail.ru CRM Gateway", dependencies=["imap-tools", "webdavclient3"])
+mcp = FastMCP("Mail.ru CRM Gateway", dependencies=["imap-tools", "webdavclient3", "requests"])
 
 # ==========================================
 # 🛡️ HARDCORE HITL (Two-Phase Commit)
@@ -65,6 +69,16 @@ def execute_pending_action(token: str) -> str:
             dav_client.create_directory(action["details"]["path"])
             return f"✅ Action Executed: Folder {action['details']['path']} created."
             
+        elif action["type"] == "calendar_create_event":
+            d = action["details"]
+            caldav_client.create_event(d["title"], d["start_iso"], d["end_iso"])
+            return f"✅ Action Executed: Event '{d['title']}' scheduled."
+
+        elif action["type"] == "contact_create":
+            d = action["details"]
+            carddav_client.create_contact(d["name"], d["email"], d.get("phone"))
+            return f"✅ Action Executed: Contact '{d['name']}' saved to Address Book."
+            
         else:
             return f"❌ Unknown action type: {action['type']}"
             
@@ -76,16 +90,18 @@ def execute_pending_action(token: str) -> str:
 # ==========================================
 
 @mcp.tool()
-def mail_read_inbox(days: int = 1, folder: str = "INBOX") -> str:
-    """Fetch latest emails since a given number of days (Triage)."""
+def mail_read_inbox(limit: int = 10, folder: str = "INBOX") -> str:
+    """Fetch latest unread emails and threads."""
+    safe_limit = min(limit, 50)
     try:
-        emails = mail_client.read_inbox_since(days, folder)
+        emails = mail_client.fetch_recent_emails(safe_limit, folder)
         if not emails:
-            return "No emails found since the given date."
+            return "No emails found."
         
         result = []
         for e in emails:
-            result.append(f"UID: {e['uid']} | From: {e['from']} | Subject: {e['subject']}\nDate: {e['date']}")
+            flags = ", ".join(e['flags'])
+            result.append(f"UID: {e['uid']} | From: {e['from']} | Subject: {e['subject']}\nDate: {e['date']} | Flags: {flags}\nSnippet: {e['text'][:200]}...")
         return "\n\n".join(result)
     except Exception as e:
         return f"Error reading inbox: {e}"
@@ -99,7 +115,6 @@ def mail_search_thread(query: str, folder: str = "INBOX", limit: int = 20) -> st
         if not emails:
             return "No emails found matching query."
         
-        # Pagination/Truncation logic for search
         result = []
         for e in emails[:safe_limit]:
             result.append(f"UID: {e['uid']} | From: {e['from']} | Subject: {e['subject']}\nDate: {e['date']}\nSnippet: {e['text_snippet']}")
@@ -110,18 +125,6 @@ def mail_search_thread(query: str, folder: str = "INBOX", limit: int = 20) -> st
         return out
     except Exception as e:
         return f"Error searching emails: {e}"
-
-@mcp.tool()
-def mail_send_draft(to_email: str, subject: str, body: str) -> str:
-    """Save a generated response to the Drafts folder (no HITL needed since it doesn't send)."""
-    try:
-        success = mail_client.save_draft(to_email, subject, body)
-        if success:
-            return f"✅ Draft saved for {to_email} with subject '{subject}'."
-        else:
-            return "❌ Failed to save draft."
-    except Exception as e:
-        return f"❌ Error saving draft: {e}"
 
 @mcp.tool()
 def mail_send_reply(to_email: str, subject: str, body: str) -> str:
@@ -144,8 +147,7 @@ def dav_list_dir(path: str = "/", offset: int = 0, limit: int = 50) -> str:
         contents = dav_client.list_directory(path)
         total_files = len(contents)
         
-        # Pagination logic
-        safe_limit = min(limit, 100) # Max 100 per chunk
+        safe_limit = min(limit, 100)
         paginated_contents = contents[offset:offset+safe_limit]
         
         header = f"📁 Directory: {path} (Showing {offset} to {offset+len(paginated_contents)} of {total_files} total items)\n"
@@ -181,6 +183,43 @@ def dav_download_file(remote_path: str, local_path: str) -> str:
 def dav_delete_file(path: str) -> str:
     """Delete documents or folders. (HITL protected)."""
     return request_hitl("dav_delete", {"path": path})
+
+# ==========================================
+# 📅 Calendar & Contacts (CalDAV / CardDAV)
+# ==========================================
+
+@mcp.tool()
+def calendar_list_events(days_ahead: int = 7) -> str:
+    """Read ZavLab's schedule to avoid double-booking."""
+    try:
+        events = caldav_client.list_events(days_ahead)
+        return "\n\n".join(events)
+    except Exception as e:
+        return f"Failed to fetch calendar events: {e}"
+
+@mcp.tool()
+def calendar_create_event(title: str, start_iso: str, end_iso: str) -> str:
+    """Propose and schedule a meeting with a client (HITL protected)."""
+    return request_hitl("calendar_create_event", {"title": title, "start_iso": start_iso, "end_iso": end_iso})
+
+@mcp.tool()
+def contact_search(query: str) -> str:
+    """Search for client vCard by email or name."""
+    try:
+        contacts = carddav_client.search_contacts(query)
+        res = []
+        for c in contacts:
+            if "error" in c: res.append(f"Error: {c['error']}")
+            elif "info" in c: res.append(c["info"])
+            else: res.append(c["vcard"])
+        return "\n\n".join(res)
+    except Exception as e:
+        return f"Failed to search contacts: {e}"
+
+@mcp.tool()
+def contact_create(name: str, email: str, phone: str = "") -> str:
+    """Create a new lead in the address book (HITL protected)."""
+    return request_hitl("contact_create", {"name": name, "email": email, "phone": phone})
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
