@@ -2,19 +2,25 @@
   <h1>📧 Mail.ru MCP Server (God Mode Edition)</h1>
   <p><b>A core component of TheNovaNodes Ecosystem</b></p>
   <p>
-    <i>Stateless Model Context Protocol (MCP) gateway enabling absolute Agentic AI control via Mail.ru IMAP, SMTP, WebDAV, CardDAV, and ActiveSync.</i>
+    <i>Stateless Model Context Protocol (MCP) gateway enabling Agentic AI control via Mail.ru IMAP, SMTP, and WebDAV.</i>
   </p>
 </div>
 
 ---
 
 ## 🧪 Ecosystem Role
-This repository serves as a secure, stateless bridge between autonomous AI agents (Kairos, Trickster) and the entire Mail.ru infrastructure. It strictly enforces Human-In-The-Loop (HITL) policies for data-mutating actions, transforming a standard mailbox into a fully automated, agentic CRM and Calendar orchestrator.
+This repository serves as a secure, stateless bridge between autonomous AI agents (Kairos, Trickster) and the Mail.ru infrastructure. It strictly enforces Human-In-The-Loop (HITL) policies via a Two-Phase Commit system for data-mutating actions.
+
+> **⚠️ CAPABILITIES NOTICE:**
+> - **Mail (IMAP/SMTP):** 🟢 FULLY SUPPORTED (Production)
+> - **Cloud Storage (WebDAV):** 🟢 FULLY SUPPORTED (Production)
+> - **Contacts (CardDAV):** ❌ NOT SUPPORTED in `master` (Due to proprietary Mail.ru API quirks. See branch `agent/trickster-dav-expansion` for experimental RFC-compliant client).
+> - **Calendar (CalDAV/EAS):** ❌ NOT SUPPORTED in `master`.
 
 ## 🏛️ Architecture & Storage
-- **Stateless Proxy:** The MCP server does not store CRM state.
-- **Collision-Free Filesystem:** WebDAV folders strictly follow the `HumanName__c_UUID` pattern.
-- **Asynchronous Polling:** Email ingestion is handled via background pollers.
+- **Stateless Proxy:** The MCP server does not store CRM state. Destructive actions generate UUID tokens stored in RAM for HITL verification.
+- **Fail-Fast:** Server terminates immediately (`exit 1`) if credentials are missing.
+- **Pagination:** Context blowouts are prevented by hard limits on directory listing and email fetching.
 
 ## 🔐 Security & Vault Protocol (CRITICAL)
 **DO NOT USE `.env` FILES FOR SECRETS.** 
@@ -23,45 +29,23 @@ Execution Wrapper:
 with-secret <VAULT_POINTER> --env MAILRU_APP_PASS -- python src/server.py
 ```
 
-## 🛠️ The Absolute Tool Registry
-The following represents the exhaustive mapping of MCP tools to Mail.ru protocols, designed for maximum AI autonomy within safe boundaries.
+## 🛠️ The Absolute Tool Registry (Production Ready)
 
 ### 📧 Mail (IMAP / SMTP)
 | Tool Name | Protocol | Description | HITL Required |
 |-----------|----------|-------------|---------------|
-| `mail_read_inbox` | IMAP | Fetch latest unread emails and threads. | ❌ No |
+| `mail_read_inbox` | IMAP | Fetch latest unread emails and threads (Paginated). | ❌ No |
 | `mail_search_thread` | IMAP | Semantic and text search across mailboxes. | ❌ No |
-| `mail_get_body` | IMAP | Extract and decode raw MIME content / attachments. | ❌ No |
-| `mail_mark_read` | IMAP | Mark emails as read/important. | ❌ No |
-| `mail_move_folder` | IMAP | Move emails to archive or client-specific folders. | ⚠️ Yes (If bulk) |
 | `mail_send_draft` | SMTP | Save a generated reply into the Drafts folder. | ❌ No |
-| `mail_send_reply` | SMTP | Send a direct reply to a client. | 🚨 **YES (R3)** |
-| `mail_send_with_attachment` | SMTP | Send email with files retrieved from WebDAV. | 🚨 **YES (R3)** |
+| `mail_send_reply` | SMTP | Send a direct reply to a client. | 🚨 **YES** |
+| `mail_send_with_attachment` | SMTP | Send email with files retrieved from WebDAV. | 🚨 **YES** |
 
 ### 🗂 Cloud Storage (WebDAV)
 | Tool Name | Protocol | Description | HITL Required |
 |-----------|----------|-------------|---------------|
-| `dav_list_dir` | WebDAV | Read CRM folder structures and file metadata. | ❌ No |
-| `dav_create_folder` | WebDAV | Scaffold a new client directory (`Name__c_UUID`). | ⚠️ Yes (R2) |
-| `dav_upload_file` | WebDAV | Upload documents, invoices, or briefs. | ⚠️ Yes (R2) |
+| `dav_list_dir` | WebDAV | Read CRM folder structures and file metadata (Paginated). | ❌ No |
+| `dav_create_folder` | WebDAV | Scaffold a new client directory. | 🚨 **YES** |
+| `dav_upload_file` | WebDAV | Upload documents, invoices, or briefs. | 🚨 **YES** |
 | `dav_download_file` | WebDAV | Download documents to agent memory. | ❌ No |
-| `dav_move_file` | WebDAV | Move/Rename files across the CRM filesystem. | ⚠️ Yes (R2) |
-| `dav_delete_file` | WebDAV | Soft/Hard delete documents. | 🚨 **YES (R4)** |
-
-### 👥 CRM Contacts (CardDAV)
-| Tool Name | Protocol | Description | HITL Required |
-|-----------|----------|-------------|---------------|
-| `contact_search` | CardDAV | Search for client vCard by email or name. | ❌ No |
-| `contact_create` | CardDAV | Create a new lead in the address book. | ⚠️ Yes (R2) |
-| `contact_update` | CardDAV | Append CRM stage or UUID to contact notes. | ⚠️ Yes (R2) |
-
-### 📅 Scheduling & Time (ActiveSync)
-| Tool Name | Protocol | Description | HITL Required |
-|-----------|----------|-------------|---------------|
-| `calendar_list_events` | EAS | Read ZavLab's schedule to avoid double-booking. | ❌ No |
-| `calendar_create_event`| EAS | Propose and schedule a meeting with a client. | 🚨 **YES (R3)** |
-| `calendar_cancel_event`| EAS | Cancel or reschedule an existing event. | 🚨 **YES (R4)** |
-
-## 🤝 Contributing (Agent Doctrine)
-- **Workflow:** GitHub Flow. Direct pushes to `master` banned.
-- **AI Delegation:** Work executed on branches prefixed with `jules/` or `agent/`.
+| `dav_delete_file` | WebDAV | Soft/Hard delete documents. | 🚨 **YES** |
+| `execute_pending_action`| Internal | Confirms and executes any HITL blocked action. | ❌ No (Agent must have token) |
