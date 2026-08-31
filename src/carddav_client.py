@@ -14,6 +14,8 @@ class CardDAVClient:
             raise ValueError("MAILRU_USERNAME and MAILRU_APP_PASS must be set for CardDAV.")
             
         self.auth = (self.username, self.password)
+        self.session = requests.Session()
+        self.session.auth = self.auth
 
     def _discover_addressbook_url(self) -> str:
         # A simplified discovery. In a robust setup, we parse PROPFIND for current-user-principal,
@@ -45,7 +47,7 @@ class CardDAVClient:
                 </c:filter>
             </c:addressbook-query>"""
             
-        res = requests.request("REPORT", url, auth=self.auth, headers=headers, data=body, timeout=10)
+        res = self.session.request("REPORT", url, headers=headers, data=body, timeout=10)
         
         if res.status_code not in (200, 207):
             return [{"error": f"Failed to search contacts: HTTP {res.status_code}"}]
@@ -72,7 +74,7 @@ class CardDAVClient:
         url = f"{self._discover_addressbook_url()}/{uid}.vcf"
         headers = {"Content-Type": "text/vcard; charset=utf-8", "If-None-Match": "*"}
         
-        res = requests.put(url, auth=self.auth, headers=headers, data=vcard.encode('utf-8'), timeout=10)
+        res = self.session.put(url, headers=headers, data=vcard.encode('utf-8'), timeout=10)
         
         if res.status_code not in (200, 201, 204):
             raise RuntimeError(f"Failed to create contact: HTTP {res.status_code} - {res.text}")

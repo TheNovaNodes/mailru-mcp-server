@@ -14,6 +14,8 @@ class CalDAVClient:
             raise ValueError("MAILRU_USERNAME and MAILRU_APP_PASS must be set for CalDAV.")
             
         self.auth = (self.username, self.password)
+        self.session = requests.Session()
+        self.session.auth = self.auth
 
     def _discover_calendar_url(self) -> str:
         # Fallback to standard calendar path
@@ -46,7 +48,7 @@ class CalDAVClient:
                 </c:filter>
             </c:calendar-query>"""
             
-        res = requests.request("REPORT", url, auth=self.auth, headers=headers, data=body, timeout=10)
+        res = self.session.request("REPORT", url, headers=headers, data=body, timeout=10)
         
         if res.status_code not in (200, 207):
             return [f"Failed to fetch events: HTTP {res.status_code}"]
@@ -75,7 +77,7 @@ class CalDAVClient:
         url = f"{self._discover_calendar_url()}/{uid}.ics"
         headers = {"Content-Type": "text/calendar; charset=utf-8", "If-None-Match": "*"}
         
-        res = requests.put(url, auth=self.auth, headers=headers, data=ics.encode('utf-8'), timeout=10)
+        res = self.session.put(url, headers=headers, data=ics.encode('utf-8'), timeout=10)
         
         if res.status_code not in (200, 201, 204):
             raise RuntimeError(f"Failed to create event: HTTP {res.status_code} - {res.text}")
