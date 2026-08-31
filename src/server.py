@@ -1,3 +1,4 @@
+import os
 import sys
 import uuid
 from typing import Dict, Any
@@ -173,6 +174,11 @@ def dav_upload_file(local_path: str, remote_path: str) -> str:
 @mcp.tool()
 def dav_download_file(remote_path: str, local_path: str) -> str:
     """Download documents to agent memory (local storage). Safe read operation."""
+    # Prevent Path Traversal Vulnerability
+    base_dir = os.path.abspath(os.getcwd())
+    target_path = os.path.abspath(local_path)
+    if os.path.commonpath([base_dir, target_path]) != base_dir:
+        return "❌ Security Error: Path traversal detected. Downloads are restricted to the agent's working directory."
     try:
         dav_client.download_file(remote_path, local_path)
         return f"✅ File downloaded to {local_path} successfully."

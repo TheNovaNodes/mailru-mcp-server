@@ -1,0 +1,4 @@
+## 2024-05-24 - Path Traversal in AI-Driven File Downloads
+**Vulnerability:** The `dav_download_file` MCP tool accepted an arbitrary `local_path` from the AI without validating if the path was outside the agent's expected working directory.
+**Learning:** Even if the external service (WebDAV) is protected via HITL for write operations, local file write operations (like downloading a file) must be bounded. Without bounding, an AI agent (or an attacker influencing it) could overwrite critical system files, `.env` files, or the source code itself, bypassing the intended HITL safety for destructive actions by corrupting the local environment.
+**Prevention:** Implement path validation using `os.path.commonpath([base_dir, target_path]) == base_dir` on all local file outputs derived from agent arguments to ensure they cannot escape the current working directory.
