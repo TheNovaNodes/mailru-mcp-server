@@ -224,23 +224,27 @@ def dav_upload_file(local_path: str, remote_path: str) -> str:
     """Upload documents to WebDAV (HITL protected)."""
     return request_hitl("dav_upload", {"local_path": local_path, "remote_path": remote_path})
 
-ALLOWED_DOWNLOAD_ROOTS = [
-    "/root/.agents",
-    "/root/projects",
-    "/tmp"
-]
+def get_allowed_download_roots() -> list[str]:
+    roots = [
+        "/root/.agents",
+        "/root/projects",
+        "/tmp",
+        os.path.abspath(os.getcwd())
+    ]
+    return list(dict.fromkeys(roots))
 
 @mcp.tool()
 def dav_download_file(remote_path: str, local_path: str) -> str:
     """Download documents to agent workspace or local storage. Safe read operation."""
     # Prevent Path Traversal outside designated workspace directories
     target_path = os.path.abspath(local_path)
+    allowed_roots = get_allowed_download_roots()
     is_allowed = any(
         os.path.commonpath([root, target_path]) == root
-        for root in ALLOWED_DOWNLOAD_ROOTS
+        for root in allowed_roots
     )
     if not is_allowed:
-        return f"❌ Security Error: Path traversal detected. Downloads are restricted to: {', '.join(ALLOWED_DOWNLOAD_ROOTS)}"
+        return f"❌ Security Error: Path traversal detected. Downloads are restricted to: {', '.join(allowed_roots)}"
     try:
         parent = os.path.dirname(target_path)
         if parent:
