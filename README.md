@@ -34,13 +34,13 @@ with-secret <VAULT_POINTER> --env MAILRU_APP_PASS -- python src/server.py
 ### 📧 Mail (IMAP / SMTP) Triage & Drafting
 | Tool Name | Protocol | Description | HITL Required |
 |-----------|----------|-------------|---------------|
-| `mail_read_inbox` | IMAP | Fetch latest emails for Triage Agent (SINCE today). | ❌ No |
-| `mail_search_thread` | IMAP | Semantic search to provide context for Drafts. | ❌ No |
-| `mail_get_body` | IMAP | Extract content for AI summarization. | ❌ No |
-| `mail_triage_mark` | IMAP | Move/Mark as `To Respond`, `FYI`, or `Spam`. | ❌ No |
-| `mail_send_draft` | SMTP | Save a pre-generated AI Draft for ZavLab to review. | ❌ No |
+| `mail_read_inbox` | IMAP | Fetch latest emails and threads (aggregates INBOX + smart subfolders). | ❌ No |
+| `mail_search_thread` | IMAP | Text and header search across mailboxes. | ❌ No |
+| `mail_get_body` | IMAP | Extract full text/html email body by UID for analysis. | ❌ No |
+| `mail_send_draft` | IMAP | Save a draft in `Черновики` / `Drafts` for ZavLab to review. | ❌ No |
+| `mail_move_message` | IMAP | Move email by UID to folder (`Archive`, `SPAM`, `REPLY_REQUIRED`). | 🚨 **YES** |
 | `mail_send_reply` | SMTP | Send a direct reply to a client (bypass Drafts). | 🚨 **YES (R3)** |
-| `mail_send_with_attachment` | SMTP | Send email with files retrieved from WebDAV. | 🚨 **YES** |
+| `mail_send_with_attachment` | SMTP | Send email with files retrieved from WebDAV/local storage. | 🚨 **YES** |
 
 ### 🗂 Cloud Storage (WebDAV)
 | Tool Name | Protocol | Description | HITL Required |
