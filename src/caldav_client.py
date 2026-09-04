@@ -24,7 +24,7 @@ class CalDAVClient:
         url = self._discover_calendar_url()
         headers = {"Content-Type": "application/xml; charset=utf-8", "Depth": "1"}
         
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         end = now + datetime.timedelta(days=days_ahead)
         
         start_str = now.strftime("%Y%m%dT%H%M%SZ")
