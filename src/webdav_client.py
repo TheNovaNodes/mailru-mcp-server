@@ -2,11 +2,14 @@ import os
 from webdav3.client import Client
 from typing import List, Dict
 
+DEFAULT_TIMEOUT = 15
+
 class WebDAVClient:
     def __init__(self):
         self.username = os.environ.get("MAILRU_USERNAME")
         self.password = os.environ.get("MAILRU_APP_PASS")
         self.host = os.environ.get("MAILRU_WEBDAV_HOST", "https://webdav.cloud.mail.ru")
+        self.timeout = int(os.environ.get("MAILRU_TIMEOUT", str(DEFAULT_TIMEOUT)))
 
         if not self.username or not self.password:
             raise ValueError("MAILRU_USERNAME and MAILRU_APP_PASS must be set in environment.")
@@ -14,7 +17,8 @@ class WebDAVClient:
         options = {
             'webdav_hostname': self.host,
             'webdav_login':    self.username,
-            'webdav_password': self.password
+            'webdav_password': self.password,
+            'webdav_timeout':  self.timeout
         }
         self.client = Client(options)
 

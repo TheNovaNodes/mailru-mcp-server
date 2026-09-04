@@ -9,6 +9,8 @@ from email.message import EmailMessage
 from typing import List, Dict, Any
 from imap_tools import MailBox, AND
 
+DEFAULT_TIMEOUT = 15
+
 def _normalize_date(dt: Any) -> datetime:
     if not dt:
         return datetime.min.replace(tzinfo=timezone.utc)
@@ -23,6 +25,7 @@ class MailRuClient:
         self.password = os.environ.get("MAILRU_APP_PASS")
         self.imap_host = os.environ.get("MAILRU_IMAP_HOST", "imap.mail.ru")
         self.smtp_host = os.environ.get("MAILRU_SMTP_HOST", "smtp.mail.ru")
+        self.timeout = int(os.environ.get("MAILRU_TIMEOUT", str(DEFAULT_TIMEOUT)))
         
         if not self.username or not self.password:
             raise ValueError("MAILRU_USERNAME and MAILRU_APP_PASS must be set in environment.")
@@ -39,7 +42,7 @@ class MailRuClient:
             folders_to_scan = ["INBOX", "INBOX/Newsletters", "INBOX/Social", "INBOX/News", "INBOX/Receipts"]
 
         emails = []
-        with MailBox(self.imap_host).login(self.username, self.password) as mailbox:
+        with MailBox(self.imap_host, timeout=self.timeout).login(self.username, self.password) as mailbox:
             for fld in folders_to_scan:
                 try:
                     mailbox.folder.set(fld)
@@ -65,7 +68,7 @@ class MailRuClient:
     def search_emails(self, query: str, folder: str = "INBOX") -> List[Dict[str, Any]]:
         """Search emails by text/subject."""
         emails = []
-        with MailBox(self.imap_host).login(self.username, self.password, initial_folder=folder) as mailbox:
+        with MailBox(self.imap_host, timeout=self.timeout).login(self.username, self.password, initial_folder=folder) as mailbox:
             for msg in mailbox.fetch(AND(text=query), reverse=True, mark_seen=False):
                 emails.append({
                     "uid": msg.uid,
@@ -79,7 +82,7 @@ class MailRuClient:
 
     def get_email_body(self, uid: str, folder: str = "INBOX") -> Dict[str, Any]:
         """Fetch full email content by UID from a folder."""
-        with MailBox(self.imap_host).login(self.username, self.password, initial_folder=folder) as mailbox:
+        with MailBox(self.imap_host, timeout=self.timeout).login(self.username, self.password, initial_folder=folder) as mailbox:
             for msg in mailbox.fetch(AND(uid=uid), limit=1, mark_seen=False):
                 return {
                     "uid": msg.uid,
@@ -95,12 +98,12 @@ class MailRuClient:
 
     def move_message(self, uid: str, to_folder: str, from_folder: str = "INBOX") -> bool:
         """Move email by UID to another folder."""
-        with MailBox(self.imap_host).login(self.username, self.password, initial_folder=from_folder) as mailbox:
+        with MailBox(self.imap_host, timeout=self.timeout).login(self.username, self.password, initial_folder=from_folder) as mailbox:
             mailbox.move(uid, to_folder)
         return True
 
     def get_imap_connection(self) -> imaplib.IMAP4_SSL:
-        mail = imaplib.IMAP4_SSL(self.imap_host)
+        mail = imaplib.IMAP4_SSL(self.imap_host, timeout=self.timeout)
         mail.login(self.username, self.password)
         return mail
 
@@ -151,7 +154,7 @@ class MailRuClient:
         msg['To'] = to_email
         msg.set_content(body)
 
-        with MailBox(self.imap_host).login(self.username, self.password) as mailbox:
+        with MailBox(self.imap_host, timeout=self.timeout).login(self.username, self.password) as mailbox:
             # Try specified folder (default 'Черновики' for Mail.ru), fallback to 'Drafts'
             try:
                 mailbox.append(msg.as_bytes(), folder, flag_set=['\\Draft'])
@@ -174,7 +177,7 @@ class MailRuClient:
                 file_name = os.path.basename(attachment_path)
             msg.add_attachment(file_data, maintype='application', subtype='octet-stream', filename=file_name)
             
-        with smtplib.SMTP_SSL(self.smtp_host, 465) as server:
+        with smtplib.SMTP_SSL(self.smtp_host, 465, timeout=self.timeout) as server:
             server.login(self.username, self.password)
             server.send_message(msg)
             

@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone, timedelta
+import time
 import os
 import sys
 
@@ -186,10 +187,55 @@ class TestServerHITL(unittest.TestCase):
         reused = server.execute_pending_action(token)
         self.assertIn("Error: Invalid, expired, or already executed", reused)
 
+    def test_hitl_ttl_expiration(self):
+        # Stage action and manually age it past TTL
+        token_msg = server.request_hitl("mail_send", {"to": "old@test.com", "subject": "S", "body": "B"})
+        token = token_msg.split("token: ")[1].strip()
+        self.assertIn(token, server.PENDING_ACTIONS)
+
+        # Fast-forward time past TTL (3601 seconds)
+        server.PENDING_ACTIONS[token]["created_at"] = time.time() - 3605
+
+        res = server.execute_pending_action(token)
+        self.assertIn("Error: Invalid, expired, or already executed", res)
+        self.assertNotIn(token, server.PENDING_ACTIONS)
+
+    def test_hitl_max_actions_eviction(self):
+        server.PENDING_ACTIONS.clear()
+        base_time = time.time()
+        # Fill to capacity
+        tokens = []
+        for i in range(server.MAX_PENDING_ACTIONS):
+            msg = server.request_hitl("mail_move_message", {"uid": str(i)})
+            tok = msg.split("token: ")[1].strip()
+            tokens.append(tok)
+            # Ensure strictly incrementing recent timestamps (within TTL)
+            server.PENDING_ACTIONS[tok]["created_at"] = base_time + i
+
+        self.assertEqual(len(server.PENDING_ACTIONS), server.MAX_PENDING_ACTIONS)
+        oldest_token = tokens[0]
+        self.assertIn(oldest_token, server.PENDING_ACTIONS)
+
+        # Trigger one more to force eviction of oldest
+        msg_extra = server.request_hitl("mail_move_message", {"uid": "extra"})
+        new_token = msg_extra.split("token: ")[1].strip()
+
+        self.assertEqual(len(server.PENDING_ACTIONS), server.MAX_PENDING_ACTIONS)
+        self.assertNotIn(oldest_token, server.PENDING_ACTIONS)
+        self.assertIn(new_token, server.PENDING_ACTIONS)
+
     def test_path_traversal_dav_download(self):
-        # Test traversal protection
+        # 1. Disallowed path outside allowed roots
         res = server.dav_download_file("/remote/doc.pdf", "/etc/passwd")
         self.assertIn("Security Error: Path traversal detected", res)
+
+        res2 = server.dav_download_file("/remote/doc.pdf", "/root/.ssh/id_rsa")
+        self.assertIn("Security Error: Path traversal detected", res2)
+
+        # 2. Allowed path under /tmp or /root/.agents
+        with patch.object(server.dav_client, "download_file", return_value=True):
+            ok_res = server.dav_download_file("/remote/doc.pdf", "/tmp/safe_doc.pdf")
+            self.assertIn("downloaded to /tmp/safe_doc.pdf successfully", ok_res)
 
 
 if __name__ == "__main__":

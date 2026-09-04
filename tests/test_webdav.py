@@ -19,7 +19,10 @@ class TestWebDAVClient(unittest.TestCase):
         client = WebDAVClient()
         self.assertEqual(client.username, "test@mail.ru")
         self.assertEqual(client.password, "test_pass")
+        self.assertEqual(client.timeout, 15)
         mock_client_cls.assert_called_once()
+        options = mock_client_cls.call_args[0][0]
+        self.assertEqual(options.get("webdav_timeout"), 15)
 
     def test_client_init_raises(self):
         with patch.dict(os.environ, {}, clear=True):

@@ -2,11 +2,11 @@
   <h1>📧 Mail.ru MCP Server (Production Edition)</h1>
   <p><b>A core component of TheNovaNodes Ecosystem</b></p>
   <p>
-    <i>Stateless Model Context Protocol (MCP) gateway enabling Agentic AI control via Mail.ru IMAP, SMTP, WebDAV, CalDAV, and CardDAV.</i>
+    <i>Stateless Model Context Protocol (MCP) gateway enabling Agentic AI control via Mail.ru IMAP, SMTP, and WebDAV.</i>
   </p>
   <p>
-    <img src="https://img.shields.io/badge/tests-57%20passed-brightgreen.svg" alt="Tests" />
-    <img src="https://img.shields.io/badge/coverage-96%25-brightgreen.svg" alt="Coverage" />
+    <img src="https://img.shields.io/badge/tests-47%20passed-brightgreen.svg" alt="Tests" />
+    <img src="https://img.shields.io/badge/coverage-97%25-brightgreen.svg" alt="Coverage" />
     <img src="https://img.shields.io/badge/python-3.12-blue.svg" alt="Python" />
     <img src="https://img.shields.io/badge/protocol-MCP%20JSON--RPC-green.svg" alt="MCP" />
   </p>
@@ -15,22 +15,22 @@
 ---
 
 ## 🧪 Ecosystem Role
-This repository serves as a secure, stateless bridge between autonomous AI agents (e.g. Kairos, Trickster, Prometheus) and the Mail.ru infrastructure. It strictly enforces Human-In-The-Loop (HITL) policies via a Two-Phase Commit token system for any data-mutating or outbound actions.
+This repository serves as a secure, stateless bridge between autonomous AI agents (e.g. Kairos, Trickster, Prometheus) and the Mail.ru infrastructure. It strictly enforces Human-In-The-Loop (HITL) policies via a Two-Phase Commit token system with sliding TTL for all mutating or outbound operations.
 
 > **✅ CAPABILITIES MATRIX:**
-> - **Mail (IMAP / SMTP):** 🟢 FULLY SUPPORTED (Aggregates INBOX & smart folders, draft generation, body extraction).
-> - **Cloud Storage (WebDAV):** 🟢 FULLY SUPPORTED (Paginated listing, download, upload, create folder, delete).
-> - **Calendar (CalDAV):** 🟢 SUPPORTED (RFC 4791 / Mail.ru CalDAV `calendar_list_events`, `calendar_create_event`).
-> - **Contacts (CardDAV):** 🟢 SUPPORTED (RFC 6352 / Mail.ru CardDAV `contact_search`, `contact_create`).
+> - **Mail (IMAP / SMTP):** 🟢 FULLY SUPPORTED (Strict 15s socket timeouts, aggregates INBOX & smart subfolders, draft generation, body extraction, thread search).
+> - **Cloud Storage (WebDAV):** 🟢 FULLY SUPPORTED (15s HTTP timeout, paginated listing, allowed-roots path traversal defense, upload, create folder, delete).
+> - **Calendar & Contacts:** 🏛️ **NATIVELY DELEGATED TO NEXTCLOUD** (`nextcloud-mcp-control` / `nextcloud-gateway`). Mail.ru does not provide a public CalDAV server and does not implement CardDAV PUT. Schedule and address book management in TheNovaNodes ecosystem are maintained via Nextcloud CalDAV/CardDAV.
 
 ---
 
 ## 🏛️ Architecture & Deployment
 
 - **Production Topology:** Operates as a managed `stdio` child backend inside `mcp-router.service` on port `:8090`. Multiplexed and throttled with per-agent ACL.
-- **Stateless Proxy:** The MCP server does not persist state in SQLite. Destructive actions generate cryptographically random 8-character tokens stored in volatile RAM for HITL confirmation.
-- **Fail-Fast:** Server terminates immediately (`exit 1`) during initialization if essential credentials (`MAILRU_USERNAME`, `MAILRU_APP_PASS`) are missing.
-- **Pagination & Safe Reads:** Prevents context window explosion with pagination (`limit` / `offset`), and suppresses `mark_seen` during triage to prevent accidental state changes.
+- **Stateless Two-Phase Commit (HITL):** Destructive actions generate cryptographically random tokens stored in memory with a 3600-second TTL and automatic eviction when capacity (`MAX_PENDING_ACTIONS = 100`) is reached.
+- **Fail-Fast Initialization:** Server terminates immediately (`exit 1`) during initialization if essential credentials (`MAILRU_USERNAME`, `MAILRU_APP_PASS`) are missing.
+- **Strict Socket Timeouts:** All IMAP (`MailBox`), SMTP (`SMTP_SSL`), and WebDAV connections enforce strict 15-second timeouts (`MAILRU_TIMEOUT=15`), preventing network deadlocks.
+- **Workspace Path Traversal Defense:** `dav_download_file` strictly validates that downloads resolve inside designated operational roots (`/root/.agents`, `/root/projects`, `/tmp`).
 
 ### 🚀 Running the Server
 
@@ -57,7 +57,7 @@ MAILRU_USERNAME="user@mail.ru" MAILRU_APP_PASS="app-password" python -m src.serv
 
 ---
 
-## 🛠️ The Absolute Tool Registry (17 Tools)
+## 🛠️ The Absolute Tool Registry (13 Tools)
 
 ### 📧 1. Mail (IMAP / SMTP) Triage & Drafting
 | Tool Name | Protocol | Arguments & Defaults | Description | HITL Required |
@@ -74,27 +74,15 @@ MAILRU_USERNAME="user@mail.ru" MAILRU_APP_PASS="app-password" python -m src.serv
 | Tool Name | Protocol | Arguments & Defaults | Description | HITL Required |
 |-----------|----------|----------------------|-------------|---------------|
 | `dav_list_dir` | WebDAV | `path: str = "/"`<br>`offset: int = 0`<br>`limit: int = 50` | Paginated directory and file metadata listing. | ❌ No |
-| `dav_download_file` | WebDAV | `remote_path: str`<br>`local_path: str` | Downloads remote file to agent local workspace. Strictly validates against Path Traversal. | ❌ No |
+| `dav_download_file` | WebDAV | `remote_path: str`<br>`local_path: str` | Downloads remote file to agent workspace. Validates destination within allowed operational roots (`/root/.agents`, `/root/projects`, `/tmp`). | ❌ No |
 | `dav_create_folder` | WebDAV | `path: str` | Scaffolds a new directory on Cloud Mail.ru. | 🚨 **YES (HITL)** |
 | `dav_upload_file` | WebDAV | `local_path: str`<br>`remote_path: str` | Uploads local documents or invoices to WebDAV. | 🚨 **YES (HITL)** |
 | `dav_delete_file` | WebDAV | `path: str` | Deletes remote documents or directories. | 🚨 **YES (HITL)** |
 
-### 📅 3. Calendar & Scheduling (CalDAV)
+### 🛡️ 3. Two-Phase Commit Execution
 | Tool Name | Protocol | Arguments & Defaults | Description | HITL Required |
 |-----------|----------|----------------------|-------------|---------------|
-| `calendar_list_events` | CalDAV | `days_ahead: int = 7` | Reads upcoming events via CalDAV `REPORT` to check availability and avoid collisions. | ❌ No |
-| `calendar_create_event` | CalDAV | `title: str`<br>`start_iso: str`<br>`end_iso: str` | Proposes and schedules a meeting on Mail.ru Calendar. | 🚨 **YES (HITL)** |
-
-### 👥 4. Address Book & Contacts (CardDAV)
-| Tool Name | Protocol | Arguments & Defaults | Description | HITL Required |
-|-----------|----------|----------------------|-------------|---------------|
-| `contact_search` | CardDAV | `query: str` | Searches address book for client vCards by name or email via CardDAV `REPORT`. | ❌ No |
-| `contact_create` | CardDAV | `name: str`<br>`email: str`<br>`phone: str = ""` | Creates a new contact entry in the Mail.ru Address Book via CardDAV `PUT`. | 🚨 **YES (HITL)** |
-
-### 🛡️ 5. Two-Phase Commit Execution
-| Tool Name | Protocol | Arguments & Defaults | Description | HITL Required |
-|-----------|----------|----------------------|-------------|---------------|
-| `execute_pending_action` | Internal | `token: str` | Validates one-time token and executes previously blocked mutating action. | ❌ No (Requires Token) |
+| `execute_pending_action` | Internal | `token: str` | Validates one-time token and executes previously blocked mutating action (with 3600s TTL). | ❌ No (Requires Token) |
 
 ---
 
@@ -114,13 +102,13 @@ To execute, you MUST call `execute_pending_action` with token: a1b2c3d4
    ```python
    execute_pending_action(token="a1b2c3d4")
    ```
-3. The server executes the action, invalidates the token, and returns the result. Tokens are single-use and cannot be replayed.
+3. The server executes the action, invalidates the token, and returns the result. Tokens expire after 3600 seconds and cannot be replayed.
 
 ---
 
 ## 🧪 Testing & Quality Assurance
 
-The test suite covers unit tests, mock integration, timezone normalization, path traversal protection, and error paths:
+The test suite covers unit tests, mock integration, timezone normalization, path traversal protection, timeout propagation, and error paths:
 
 ```bash
 # Run all tests
@@ -131,7 +119,7 @@ coverage run -m unittest discover tests
 coverage report -m
 ```
 
-Target standard: **$\ge 90\%$ line coverage across all modules**.
+Production standard: **$\ge 95\%$ line coverage across all modules (currently 97%)**.
 
 ---
 

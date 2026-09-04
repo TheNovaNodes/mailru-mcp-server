@@ -1,6 +1,7 @@
 import os
 import sys
 import uuid
+import time
 from typing import Dict, Any
 try:
     from mcp.server.fastmcp import FastMCP
@@ -10,8 +11,6 @@ from pydantic import BaseModel, Field
 
 from src.mailru_client import MailRuClient
 from src.webdav_client import WebDAVClient
-from src.caldav_client import CalDAVClient
-from src.carddav_client import CardDAVClient
 
 # ==========================================
 # 🛑 FAIL-FAST INITIALIZATION
@@ -20,8 +19,6 @@ from src.carddav_client import CardDAVClient
 try:
     mail_client = MailRuClient()
     dav_client = WebDAVClient()
-    caldav_client = CalDAVClient()
-    carddav_client = CardDAVClient()
 except ValueError as e:
     print(f"CRITICAL STARTUP FAILURE: {e}", file=sys.stderr)
     sys.exit(1)
@@ -29,14 +26,32 @@ except ValueError as e:
 mcp = FastMCP("Mail.ru CRM Gateway")
 
 # ==========================================
-# 🛡️ HARDCORE HITL (Two-Phase Commit)
+# 🛡️ HARDCORE HITL (Two-Phase Commit with TTL)
 # ==========================================
 PENDING_ACTIONS: Dict[str, Any] = {}
+HITL_TTL_SECONDS = 3600  # 1 hour TTL
+MAX_PENDING_ACTIONS = 100
+
+def _cleanup_expired_actions() -> None:
+    """Prune expired HITL actions from memory to prevent unbounded leaks."""
+    now = time.time()
+    expired = [t for t, data in PENDING_ACTIONS.items() if now - data.get("created_at", 0) > HITL_TTL_SECONDS]
+    for t in expired:
+        PENDING_ACTIONS.pop(t, None)
 
 def request_hitl(action_type: str, details: dict) -> str:
     """Stage a destructive action and demand a confirmation token."""
+    _cleanup_expired_actions()
+    if len(PENDING_ACTIONS) >= MAX_PENDING_ACTIONS:
+        oldest_token = min(PENDING_ACTIONS.keys(), key=lambda k: PENDING_ACTIONS[k].get("created_at", 0))
+        PENDING_ACTIONS.pop(oldest_token, None)
+
     token = str(uuid.uuid4())[:8]
-    PENDING_ACTIONS[token] = {"type": action_type, "details": details}
+    PENDING_ACTIONS[token] = {
+        "type": action_type,
+        "details": details,
+        "created_at": time.time()
+    }
     return (
         f"🚨 ACTION BLOCKED (HITL REQUIRED) 🚨\n"
         f"Type: {action_type}\n"
@@ -50,6 +65,7 @@ def execute_pending_action(token: str) -> str:
     Execute a destructive action that was previously blocked by HITL.
     The agent must retrieve the token from the blocked action response.
     """
+    _cleanup_expired_actions()
     if token not in PENDING_ACTIONS:
         return "❌ Error: Invalid, expired, or already executed HITL token."
     
@@ -77,16 +93,6 @@ def execute_pending_action(token: str) -> str:
         elif action["type"] == "dav_create_folder":
             dav_client.create_directory(action["details"]["path"])
             return f"✅ Action Executed: Folder {action['details']['path']} created."
-            
-        elif action["type"] == "calendar_create_event":
-            d = action["details"]
-            caldav_client.create_event(d["title"], d["start_iso"], d["end_iso"])
-            return f"✅ Action Executed: Event '{d['title']}' scheduled."
-
-        elif action["type"] == "contact_create":
-            d = action["details"]
-            carddav_client.create_contact(d["name"], d["email"], d.get("phone"))
-            return f"✅ Action Executed: Contact '{d['name']}' saved to Address Book."
             
         else:
             return f"❌ Unknown action type: {action['type']}"
@@ -218,16 +224,32 @@ def dav_upload_file(local_path: str, remote_path: str) -> str:
     """Upload documents to WebDAV (HITL protected)."""
     return request_hitl("dav_upload", {"local_path": local_path, "remote_path": remote_path})
 
+def get_allowed_download_roots() -> list[str]:
+    roots = [
+        "/root/.agents",
+        "/root/projects",
+        "/tmp",
+        os.path.abspath(os.getcwd())
+    ]
+    return list(dict.fromkeys(roots))
+
 @mcp.tool()
 def dav_download_file(remote_path: str, local_path: str) -> str:
-    """Download documents to agent memory (local storage). Safe read operation."""
-    # Prevent Path Traversal Vulnerability
-    base_dir = os.path.abspath(os.getcwd())
+    """Download documents to agent workspace or local storage. Safe read operation."""
+    # Prevent Path Traversal outside designated workspace directories
     target_path = os.path.abspath(local_path)
-    if os.path.commonpath([base_dir, target_path]) != base_dir:
-        return "❌ Security Error: Path traversal detected. Downloads are restricted to the agent's working directory."
+    allowed_roots = get_allowed_download_roots()
+    is_allowed = any(
+        os.path.commonpath([root, target_path]) == root
+        for root in allowed_roots
+    )
+    if not is_allowed:
+        return f"❌ Security Error: Path traversal detected. Downloads are restricted to: {', '.join(allowed_roots)}"
     try:
-        dav_client.download_file(remote_path, local_path)
+        parent = os.path.dirname(target_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        dav_client.download_file(remote_path, target_path)
         return f"✅ File downloaded to {local_path} successfully."
     except Exception as e:
         return f"❌ Download failed: {e}"
@@ -236,43 +258,6 @@ def dav_download_file(remote_path: str, local_path: str) -> str:
 def dav_delete_file(path: str) -> str:
     """Delete documents or folders. (HITL protected)."""
     return request_hitl("dav_delete", {"path": path})
-
-# ==========================================
-# 📅 Calendar & Contacts (CalDAV / CardDAV)
-# ==========================================
-
-@mcp.tool()
-def calendar_list_events(days_ahead: int = 7) -> str:
-    """Read ZavLab's schedule to avoid double-booking."""
-    try:
-        events = caldav_client.list_events(days_ahead)
-        return "\n\n".join(events)
-    except Exception as e:
-        return f"Failed to fetch calendar events: {e}"
-
-@mcp.tool()
-def calendar_create_event(title: str, start_iso: str, end_iso: str) -> str:
-    """Propose and schedule a meeting with a client (HITL protected)."""
-    return request_hitl("calendar_create_event", {"title": title, "start_iso": start_iso, "end_iso": end_iso})
-
-@mcp.tool()
-def contact_search(query: str) -> str:
-    """Search for client vCard by email or name."""
-    try:
-        contacts = carddav_client.search_contacts(query)
-        res = []
-        for c in contacts:
-            if "error" in c: res.append(f"Error: {c['error']}")
-            elif "info" in c: res.append(c["info"])
-            else: res.append(c["vcard"])
-        return "\n\n".join(res)
-    except Exception as e:
-        return f"Failed to search contacts: {e}"
-
-@mcp.tool()
-def contact_create(name: str, email: str, phone: str = "") -> str:
-    """Create a new lead in the address book (HITL protected)."""
-    return request_hitl("contact_create", {"name": name, "email": email, "phone": phone})
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
