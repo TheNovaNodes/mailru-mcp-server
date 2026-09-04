@@ -16,11 +16,11 @@ Both human engineers and autonomous AI agents are welcome to contribute under th
 2. **Verification Without Absurdity:**
    - **Pre-commit / Pre-push (Native Minimum):** Verify changes locally before committing:
      ```bash
-     python -m py_compile src/*.py tests/*.py
-     python -m unittest discover tests -v
-     coverage run -m unittest discover tests && coverage report -m
+     make lint
+     make test
+     make coverage
      ```
-     Target standard: **$\ge 95\%$ line coverage across all modules**.
+     Ensure all unit tests pass with the race detector enabled (`-race`).
    - **Post-PR (Cloud CI via GitHub CLI):** After opening a PR, monitor the actual cloud CI:
      ```bash
      gh pr checks <PR_NUMBER> --watch
@@ -28,37 +28,37 @@ Both human engineers and autonomous AI agents are welcome to contribute under th
      Never report readiness or attempt merging until all CI checks are green.
 
 3. **Zero-Deadlock & Network Timeout Directive:**
-   - Every network socket or HTTP connection **MUST** enforce an explicit timeout (`timeout=15` or `MAILRU_TIMEOUT`).
+   - Every network socket or HTTP connection **MUST** enforce an explicit timeout (`15s` or `MAILRU_TIMEOUT`).
    - Infinite blocking calls on sockets or streaming endpoints are strictly prohibited.
 
-4. **Radical Minimalism & Anti-Mock Doctrine:**
-   - Never introduce phantom protocols or fake comfort through ungrounded mock tests.
-   - Every integrated protocol must be verified against real-world protocol endpoints and specifications.
+4. **Documentation Synchronization Invariant:**
+   - Code changes, refactorings, or new tool registrations **MUST** be accompanied by synchronized updates to `README.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, and `SECURITY.md` in the same commit / PR.
 
 ---
 
 ## 🛠️ Development Setup
 
-1. **Clone repository and setup environment:**
+1. **Prerequisites:**
+   - Go `1.22` or higher.
+   - `make` utility.
+
+2. **Clone repository and build:**
    ```bash
    git clone https://github.com/TheNovaNodes/mailru-mcp-server.git
    cd mailru-mcp-server
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
+   make build
    ```
 
-2. **Configure environment variables:**
-   Credentials must be provided via environment variables (never committed to git):
+3. **Configure environment variables:**
    ```bash
    export MAILRU_USERNAME="user@mail.ru"
    export MAILRU_APP_PASS="app-specific-password"
    export MAILRU_TIMEOUT="15"
    ```
 
-3. **Run tests:**
+4. **Run test suite:**
    ```bash
-   python -m unittest discover tests -v
+   make test
    ```
 
 ---
@@ -67,8 +67,8 @@ Both human engineers and autonomous AI agents are welcome to contribute under th
 
 When adding or modifying MCP tools:
 - **Read-only tools** (e.g. `mail_read_inbox`, `dav_list_dir`) may execute autonomously.
-- **Mutating/Destructive tools** (e.g. `mail_send_reply`, `dav_delete_file`, `mail_move_message`) **MUST** use `request_hitl()` to enforce Two-Phase Commit with a 3600-second TTL token.
-- **File downloads** **MUST** validate target destinations using `get_allowed_download_roots()` to prevent directory traversal outside designated workspaces.
+- **Mutating/Destructive tools** (e.g. `mail_send_reply`, `dav_delete_file`, `mail_move_message`) **MUST** use `hitl.Manager.Request()` to enforce Two-Phase Commit with a 3600-second TTL token.
+- **File downloads** **MUST** validate target destinations using `webdav.ValidateDownloadPath()` to prevent directory traversal outside designated workspaces.
 
 ---
 
