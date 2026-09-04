@@ -9,6 +9,7 @@
     <img src="https://img.shields.io/badge/coverage-97%25-brightgreen.svg" alt="Coverage" />
     <img src="https://img.shields.io/badge/python-3.12-blue.svg" alt="Python" />
     <img src="https://img.shields.io/badge/protocol-MCP%20JSON--RPC-green.svg" alt="MCP" />
+    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" />
   </p>
 </div>
 
@@ -127,4 +128,13 @@ Production standard: **$\ge 95\%$ line coverage across all modules (currently 97
 - **Workflow:** GitHub Flow. Direct pushes to `master` strictly forbidden.
 - **Pre-commit:** Verify changes with `python -m py_compile src/*.py` and `python -m unittest discover tests`.
 - **Pre-push:** Create dedicated branches (`feat/*`, `fix/*`), submit PR, and verify cloud CI status (`gh pr checks`).
+
+---
+
+## 📜 Governance & References
+- **License:** [MIT License](LICENSE)
+- **Contribution Guide:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Security Policy:** [SECURITY.md](SECURITY.md)
+- **Release History:** [CHANGELOG.md](CHANGELOG.md)
+- **Architecture Decisions:** [ARCHITECTURE.md](ARCHITECTURE.md)
 
