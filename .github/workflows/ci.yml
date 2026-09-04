@@ -25,3 +25,7 @@ jobs:
     - name: Syntax Check
       run: |
         python -m py_compile src/*.py
+
+    - name: Run Unit Tests
+      run: |
+        python -m unittest discover tests
