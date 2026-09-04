@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock, mock_open
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -23,6 +24,7 @@ class TestMailRuSMTPAndSearch(unittest.TestCase):
 
         res = self.client.send_email("recipient@example.com", "Test Subject", "Test Body")
         self.assertTrue(res)
+        mock_smtp_cls.assert_called_once_with("smtp.mail.ru", 465, timeout=15)
         mock_server.login.assert_called_once_with("test@mail.ru", "test_pass")
         mock_server.send_message.assert_called_once()
 
@@ -35,6 +37,7 @@ class TestMailRuSMTPAndSearch(unittest.TestCase):
 
         res = self.client.send_email("recipient@example.com", "Invoice", "Please find attached", "/tmp/invoice.pdf")
         self.assertTrue(res)
+        mock_smtp_cls.assert_called_once_with("smtp.mail.ru", 465, timeout=15)
         mock_server.send_message.assert_called_once()
 
     @patch("src.mailru_client.MailBox")
@@ -58,6 +61,7 @@ class TestMailRuSMTPAndSearch(unittest.TestCase):
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0]["uid"], "101")
         self.assertIn("Body 1", res[0]["text_snippet"])
+        mock_mailbox_cls.assert_called_once_with("imap.mail.ru", timeout=15)
 
     @patch.object(MailRuClient, "get_imap_connection")
     def test_read_inbox_since(self, mock_get_conn):
@@ -108,6 +112,23 @@ class TestServerMailTools(unittest.TestCase):
             res = server.mail_read_inbox()
             self.assertIn("Error reading inbox: IMAP err", res)
 
+    def test_mail_read_inbox_found(self):
+        fake_email = {
+            "uid": "123",
+            "folder": "INBOX",
+            "from": "user@test.com",
+            "subject": "Hello",
+            "date": "2026-09-04T12:00:00Z",
+            "flags": ["\\Seen"],
+            "text": "Hello world snippet"
+        }
+        with patch.object(server.mail_client, "fetch_recent_emails", return_value=[fake_email]):
+            res = server.mail_read_inbox()
+            self.assertIn("UID: 123", res)
+            self.assertIn("Folder: INBOX", res)
+            self.assertIn("Subject: Hello", res)
+            self.assertIn("Flags: \\Seen", res)
+
     def test_mail_get_body_not_found_and_error(self):
         with patch.object(server.mail_client, "get_email_body", return_value={}):
             res = server.mail_get_body("99999")
@@ -117,6 +138,22 @@ class TestServerMailTools(unittest.TestCase):
             res = server.mail_get_body("111")
             self.assertIn("Error getting email body: Corrupt", res)
 
+    def test_mail_get_body_found(self):
+        fake_details = {
+            "uid": "123",
+            "folder": "INBOX",
+            "from": "user@test.com",
+            "to": "me@test.com",
+            "subject": "Greetings",
+            "date": "2026-09-04T12:00:00Z",
+            "text": "Full body text content here",
+            "html": ""
+        }
+        with patch.object(server.mail_client, "get_email_body", return_value=fake_details):
+            res = server.mail_get_body("123")
+            self.assertIn("UID: 123", res)
+            self.assertIn("Full body text content here", res)
+
     def test_mail_send_draft_failure_and_error(self):
         with patch.object(server.mail_client, "save_draft", return_value=False):
             res = server.mail_send_draft("a@b.com", "S", "B")
@@ -125,6 +162,16 @@ class TestServerMailTools(unittest.TestCase):
         with patch.object(server.mail_client, "save_draft", side_effect=Exception("Disk error")):
             res = server.mail_send_draft("a@b.com", "S", "B")
             self.assertIn("Error saving draft: Disk error", res)
+
+    def test_mail_send_draft_success(self):
+        with patch.object(server.mail_client, "save_draft", return_value=True):
+            res = server.mail_send_draft("a@b.com", "Draft", "Content")
+            self.assertIn("saved successfully in Drafts/Черновики", res)
+
+    def test_mail_move_message_tool(self):
+        token_msg = server.mail_move_message("777", "Archive", "INBOX")
+        self.assertIn("ACTION BLOCKED (HITL REQUIRED)", token_msg)
+        self.assertIn("mail_move_message", token_msg)
 
     def test_mail_send_reply_hitl(self):
         token_msg = server.mail_send_reply("client@test.com", "Re: Deal", "Agreed")
@@ -148,12 +195,20 @@ class TestServerMailTools(unittest.TestCase):
 
     def test_execute_pending_action_unknown_and_exception(self):
         # Unknown action
-        server.PENDING_ACTIONS["test_unknown"] = {"type": "unsupported_action", "details": {}}
+        server.PENDING_ACTIONS["test_unknown"] = {
+            "type": "unsupported_action",
+            "details": {},
+            "created_at": time.time()
+        }
         res = server.execute_pending_action("test_unknown")
         self.assertIn("Unknown action type", res)
 
         # Exception during execution
-        server.PENDING_ACTIONS["test_fail"] = {"type": "mail_send", "details": {"to": "x", "subject": "y", "body": "z"}}
+        server.PENDING_ACTIONS["test_fail"] = {
+            "type": "mail_send",
+            "details": {"to": "x", "subject": "y", "body": "z"},
+            "created_at": time.time()
+        }
         with patch.object(server.mail_client, "send_email", side_effect=Exception("SMTP down")):
             res = server.execute_pending_action("test_fail")
             self.assertIn("Execution failed: SMTP down", res)
