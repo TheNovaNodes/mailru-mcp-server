@@ -262,3 +262,4 @@ func TestMail_LiveClient_ClosedPortErrors(t *testing.T) {
 		t.Error("expected error dialing closed SMTP port")
 	}
 }
+
