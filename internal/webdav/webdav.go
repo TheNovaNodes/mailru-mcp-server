@@ -36,9 +36,41 @@ func ValidateDownloadPath(localPath string, allowedRoots []string) (string, erro
 		return "", fmt.Errorf("invalid path: %w", err)
 	}
 
+	evalTarget, err := filepath.EvalSymlinks(absTarget)
+	if err == nil {
+		absTarget = evalTarget
+	} else if os.IsNotExist(err) {
+		// If the file or directory doesn't exist yet, recursively walk up
+		// the directory tree until we find an existing path to evaluate.
+		dir := filepath.Dir(absTarget)
+		var evalDir string
+		var dirErr error
+
+		for {
+			evalDir, dirErr = filepath.EvalSymlinks(dir)
+			if dirErr == nil {
+				break
+			}
+			if !os.IsNotExist(dirErr) || dir == "/" || dir == "." {
+				break
+			}
+			dir = filepath.Dir(dir)
+		}
+
+		if dirErr == nil {
+			// Compute the relative path from the found directory to the original target
+			rel, _ := filepath.Rel(dir, absTarget)
+			absTarget = filepath.Join(evalDir, rel)
+		}
+	}
+
 	cleanTarget := filepath.Clean(absTarget)
 
 	for _, root := range allowedRoots {
+		evalRoot, err := filepath.EvalSymlinks(root)
+		if err == nil {
+			root = evalRoot
+		}
 		cleanRoot := filepath.Clean(root)
 		rel, err := filepath.Rel(cleanRoot, cleanTarget)
 		if err == nil && !strings.HasPrefix(rel, "..") && rel != "." && !strings.HasPrefix(rel, "/..") {
@@ -111,9 +143,9 @@ type propStat struct {
 }
 
 type prop struct {
-	DisplayName   string        `xml:"displayname"`
-	ResourceType  resourceType  `xml:"resourcetype"`
-	ContentLength *int64        `xml:"getcontentlength"`
+	DisplayName   string       `xml:"displayname"`
+	ResourceType  resourceType `xml:"resourcetype"`
+	ContentLength *int64       `xml:"getcontentlength"`
 }
 
 type resourceType struct {
@@ -155,7 +187,7 @@ func (c *Client) ListDirectory(ctx context.Context, remotePath string) ([]string
 		if err != nil {
 			decodedHref = r.Href
 		}
-		
+
 		// Strip host/scheme if present
 		if u, err := url.Parse(decodedHref); err == nil && u.Path != "" {
 			decodedHref = u.Path

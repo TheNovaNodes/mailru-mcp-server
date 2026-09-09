@@ -499,6 +499,7 @@ func (c *LiveClient) SendEmail(ctx context.Context, toEmail, subject, body, atta
 	dialer := &net.Dialer{Timeout: c.Timeout}
 	conn, err := tls.DialWithDialer(dialer, "tcp", net.JoinHostPort(host, port), &tls.Config{
 		ServerName: host,
+		MinVersion: tls.VersionTLS12,
 	})
 	if err != nil {
 		return fmt.Errorf("SMTP TLS dial failed: %w", err)
