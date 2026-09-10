@@ -139,7 +139,10 @@ func (c *LiveClient) FetchRecentEmails(ctx context.Context, limit int, folder st
 	if err != nil {
 		return nil, err
 	}
-	defer client.Logout()
+	defer func() {
+		_ = client.Logout().Wait()
+		_ = client.Close()
+	}()
 
 	folders := []string{folder}
 	if folder == "INBOX" && includeSmartFolders {
@@ -243,7 +246,10 @@ func (c *LiveClient) SearchEmails(ctx context.Context, query string, folder stri
 	if err != nil {
 		return nil, err
 	}
-	defer client.Logout()
+	defer func() {
+		_ = client.Logout().Wait()
+		_ = client.Close()
+	}()
 
 	_, err = client.Select(folder, &imap.SelectOptions{ReadOnly: true}).Wait()
 	if err != nil {
@@ -324,7 +330,10 @@ func (c *LiveClient) GetEmailBody(ctx context.Context, uid string, folder string
 	if err != nil {
 		return nil, err
 	}
-	defer client.Logout()
+	defer func() {
+		_ = client.Logout().Wait()
+		_ = client.Close()
+	}()
 
 	_, err = client.Select(folder, &imap.SelectOptions{ReadOnly: true}).Wait()
 	if err != nil {
@@ -386,7 +395,10 @@ func (c *LiveClient) MoveMessage(ctx context.Context, uid string, toFolder strin
 	if err != nil {
 		return err
 	}
-	defer client.Logout()
+	defer func() {
+		_ = client.Logout().Wait()
+		_ = client.Close()
+	}()
 
 	_, err = client.Select(fromFolder, &imap.SelectOptions{ReadOnly: false}).Wait()
 	if err != nil {
@@ -410,7 +422,10 @@ func (c *LiveClient) SaveDraft(ctx context.Context, toEmail, subject, body strin
 	if err != nil {
 		return err
 	}
-	defer client.Logout()
+	defer func() {
+		_ = client.Logout().Wait()
+		_ = client.Close()
+	}()
 
 	rawMsg := BuildMIMEMessage(c.Username, toEmail, subject, body, "")
 
