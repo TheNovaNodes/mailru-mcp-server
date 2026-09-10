@@ -10,3 +10,9 @@ htmlcov/
 mailru-mcp-server
 *.out
 coverage.txt
+
+# IDEs and OS files
+.vscode/
+.idea/
+.DS_Store
+*.swp
