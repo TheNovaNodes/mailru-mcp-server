@@ -12,3 +12,13 @@
 **Vulnerability:** SMTP client initialized without specifying a minimum TLS version in `tls.Config`.
 **Learning:** Default TLS configuration can permit obsolete or weak protocols, exposing connections to TLS downgrade attacks.
 **Prevention:** Explicitly set `MinVersion: tls.VersionTLS12` (or newer) in `tls.Config` when initializing secure connections.
+
+## 2026-09-11 - [Insecure TLS Configuration for IMAP]
+**Vulnerability:** IMAP client in `dialIMAP()` did not set `MinVersion: tls.VersionTLS12` in `tls.Config`.
+**Learning:** Symmetric security posture across all protocol adapters (IMAP, SMTP, WebDAV) is required to prevent protocol downgrade.
+**Prevention:** Explicitly set `MinVersion: tls.VersionTLS12` across all network TLS configurations.
+
+## 2026-09-11 - [Path Traversal in AI-Driven WebDAV Uploads & Mail Attachments]
+**Vulnerability:** `dav_upload_file` and `mail_send_with_attachment` accepted unbounded host file paths (`/etc/shadow`, `~/.ssh/id_rsa`).
+**Learning:** Even when destructive operations are guarded by HITL, staging arbitrary system file paths allows potential exfiltration if human approval is social-engineered or accidentally given.
+**Prevention:** Strictly enforce `webdav.ValidateDownloadPath()` on both staging and execution phases for all local file read/write arguments.

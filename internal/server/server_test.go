@@ -216,13 +216,23 @@ func TestServer_AllTools(t *testing.T) {
 	}
 
 	// 6. mail_send_with_attachment (HITL)
+	attFile := filepath.Join(tmpDir, "a.pdf")
+	_ = os.WriteFile(attFile, []byte("pdf-content"), 0644)
 	out, _ = callTool(srv, "mail_send_with_attachment", map[string]any{
-		"to_email": "d@mail.ru", "subject": "S", "body": "B", "attachment_path": "/tmp/a.pdf",
+		"to_email": "d@mail.ru", "subject": "S", "body": "B", "attachment_path": attFile,
 	})
 	tok = extractToken(out)
 	execOut, _ = callTool(srv, "execute_pending_action", map[string]any{"token": tok})
 	if !strings.Contains(execOut, "Action Executed: Email sent to d@mail.ru.") {
 		t.Fatalf("execute mail_send_with_attachment failed: %s", execOut)
+	}
+
+	// mail_send_with_attachment path traversal rejected
+	secOut, _ := callTool(srv, "mail_send_with_attachment", map[string]any{
+		"to_email": "d@mail.ru", "subject": "S", "body": "B", "attachment_path": "/etc/shadow",
+	})
+	if !strings.Contains(secOut, "Security Error") {
+		t.Fatalf("expected security error on attachment traversal, got: %s", secOut)
 	}
 
 	// 7. mail_move_message (HITL)
@@ -265,6 +275,15 @@ func TestServer_AllTools(t *testing.T) {
 		t.Fatalf("execute dav_upload_file failed: %s", execOut)
 	}
 
+	// dav_upload_file path traversal rejected
+	secOut, _ = callTool(srv, "dav_upload_file", map[string]any{
+		"local_path":  "/etc/shadow",
+		"remote_path": "/remote.txt",
+	})
+	if !strings.Contains(secOut, "Security Error") {
+		t.Fatalf("expected security error on upload traversal, got: %s", secOut)
+	}
+
 	// 11. dav_download_file
 	downFile := filepath.Join(tmpDir, "down.txt")
 	out, err = callTool(srv, "dav_download_file", map[string]any{"remote_path": "/remote.txt", "local_path": downFile})
@@ -304,7 +323,7 @@ func TestServer_AllTools(t *testing.T) {
 }
 
 func TestServer_ErrorHandlingAndExecutionFailures(t *testing.T) {
-	srv, mockMail, davMock, _ := setupTestServer(t)
+	srv, mockMail, davMock, tmpDir := setupTestServer(t)
 	defer davMock.Close()
 
 	// Default constructor with nil allowedRoots
@@ -360,11 +379,27 @@ func TestServer_ErrorHandlingAndExecutionFailures(t *testing.T) {
 		t.Errorf("expected dav_create_folder failure, got: %s", out)
 	}
 
-	resp = srv.hitlMgr.Request("dav_upload", map[string]any{"local_path": "/nonexistent", "remote_path": "/faileverything"})
+	resp = srv.hitlMgr.Request("dav_upload", map[string]any{"local_path": filepath.Join(tmpDir, "nonexistent.txt"), "remote_path": "/faileverything"})
 	tok = extractToken(resp)
 	out, _ = callTool(srv, "execute_pending_action", map[string]any{"token": tok})
 	if !strings.Contains(out, "Execution failed") {
 		t.Errorf("expected dav_upload failure, got: %s", out)
+	}
+
+	// Test execute_pending_action when dav_upload violates path containment
+	resp = srv.hitlMgr.Request("dav_upload", map[string]any{"local_path": "/etc/shadow", "remote_path": "/remote.txt"})
+	tok = extractToken(resp)
+	out, _ = callTool(srv, "execute_pending_action", map[string]any{"token": tok})
+	if !strings.Contains(out, "Security Error") {
+		t.Errorf("expected security error executing dav_upload, got: %s", out)
+	}
+
+	// Test execute_pending_action when mail_send attachment violates path containment
+	resp = srv.hitlMgr.Request("mail_send", map[string]any{"to": "a@b.com", "subject": "s", "body": "b", "attachment": "/etc/shadow"})
+	tok = extractToken(resp)
+	out, _ = callTool(srv, "execute_pending_action", map[string]any{"token": tok})
+	if !strings.Contains(out, "Security Error") {
+		t.Errorf("expected security error executing mail_send attachment, got: %s", out)
 	}
 
 	// Test execute_pending_action unknown type
