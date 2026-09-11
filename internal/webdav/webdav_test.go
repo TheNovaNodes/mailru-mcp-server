@@ -32,7 +32,7 @@ func TestWebDAV_Constructor(t *testing.T) {
 }
 
 func TestWebDAV_PathTraversal(t *testing.T) {
-	allowedRoots := []string{"/tmp/workspace", "/root/.agents"}
+	allowedRoots := []string{"/tmp/workspace"}
 
 	// Valid path
 	safe, err := ValidateDownloadPath("/tmp/workspace/file.pdf", allowedRoots)

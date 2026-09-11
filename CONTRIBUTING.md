@@ -1,5 +1,6 @@
 # Contributing to mailru-mcp-server
 
+
 Thank you for your interest in contributing to `mailru-mcp-server`, a critical component of the **TheNovaNodes** ecosystem providing Model Context Protocol (MCP) integration with Mail.ru services.
 
 Both human engineers and autonomous AI agents are welcome to contribute under the collective directives outlined below.

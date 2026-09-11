@@ -1,5 +1,6 @@
 # Security Policy
 
+
 TheNovaNodes Collective takes security and operational integrity with utmost seriousness.
 
 ---

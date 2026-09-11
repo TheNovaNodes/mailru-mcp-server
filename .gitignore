@@ -3,12 +3,17 @@ __pycache__/
 *$py.class
 .venv/
 .env
+.env.*
+!.env.example
 *.log
 .pytest_cache/
 .coverage
 htmlcov/
 mailru-mcp-server
+bin/
 *.out
+coverage.out
+*.prof
 coverage.txt
 
 # IDEs and OS files

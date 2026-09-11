@@ -5,6 +5,7 @@
     <i>High-performance, stateless Model Context Protocol (MCP) gateway written in Go, enabling Agentic AI control via Mail.ru IMAP, SMTP, and WebDAV.</i>
   </p>
   <p>
+    [![CI](https://github.com/TheNovaNodes/mailru-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/TheNovaNodes/mailru-mcp-server/actions/workflows/ci.yml)
     <img src="https://img.shields.io/badge/go-1.22+-00ADD8.svg?logo=go" alt="Go Version" />
     <img src="https://img.shields.io/badge/tests-passing-brightgreen.svg" alt="Tests" />
     <img src="https://img.shields.io/badge/protocol-MCP%20JSON--RPC-green.svg" alt="MCP" />

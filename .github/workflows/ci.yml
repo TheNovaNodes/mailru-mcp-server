@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - 'LICENSE'
       - '.gitignore'
       - '.gitattributes'
   pull_request:
@@ -13,21 +14,22 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - 'LICENSE'
       - '.gitignore'
       - '.gitattributes'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  cancel-in-progress: true # FinOps: cancel redundant runs
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 10 # FinOps: Hard limit
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 1
+        fetch-depth: 1 # FinOps: shallow clone
     
     - name: Set up Go
       uses: actions/setup-go@v5
