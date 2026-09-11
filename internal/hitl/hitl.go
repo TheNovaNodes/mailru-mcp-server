@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 )
@@ -103,14 +104,19 @@ func (m *Manager) Request(actionType string, details map[string]any) string {
 
 	detailsJSON, _ := json.MarshalIndent(details, "", "  ")
 
+	operator := os.Getenv("MAILRU_OPERATOR_NAME")
+	if operator == "" {
+		operator = "the operator (ZavLab)"
+	}
+
 	return fmt.Sprintf(
 		"⚠️ ACTION BLOCKED BY HITL (Human-In-The-Loop) POLICY\n\n"+
 			"Type: %s\n"+
 			"Details: %s\n\n"+
-			"To execute this action, obtain explicit confirmation from ZavLab and run:\n"+
+			"To execute this action, obtain explicit confirmation from %s and run:\n"+
 			"`execute_pending_action(token='%s')`\n"+
 			"Note: This token is valid for 1 hour.",
-		actionType, string(detailsJSON), token,
+		actionType, string(detailsJSON), operator, token,
 	)
 }
 

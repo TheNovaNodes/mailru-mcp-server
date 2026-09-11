@@ -31,7 +31,7 @@ This repository serves as a hardened, stateless bridge between autonomous AI age
 - **Zero Interpreter Overhead:** Single self-contained static binary (`~13MB`) replacing Python virtual environment. Memory drops from ~85MB to ~15MB RSS. Cold-start latency drops from ~1.2s to <10ms.
 - **Fail-Safe Socket Timeouts:** Every network call (IMAP TLS, SMTP TLS, WebDAV HTTP) enforces an explicit 15-second deadline (`MAILRU_TIMEOUT=15`), eliminating deadlock hazards.
 - **Stateless Two-Phase Commit (HITL):** Destructive actions generate cryptographically secure single-use tokens stored in memory with a 3600-second TTL and automatic eviction when capacity (`MAX_PENDING_ACTIONS = 100`) is reached.
-- **Workspace Path Traversal Defense:** `dav_download_file` strictly validates that downloads resolve inside designated operational roots (`/root/.agents`, `/root/projects`, `/tmp`, and CWD).
+- **Workspace Path Traversal Defense:** All file downloads, uploads, and email attachments strictly validate that paths resolve inside designated operational roots (user home, CWD, system temporary directory, or customizable via `MAILRU_ALLOWED_ROOTS`).
 - **Fail-Fast Initialization:** Server terminates immediately (`exit 1`) during startup if essential credentials (`MAILRU_USERNAME`, `MAILRU_APP_PASS`) are missing.
 
 ---
@@ -43,7 +43,7 @@ This repository serves as a hardened, stateless bridge between autonomous AI age
 | `execute_pending_action` | 🟢 Safe | `token` (str) | Executes a staged action blocked by HITL. |
 | `mail_read_inbox` | 🟢 Safe | `limit` (int), `folder` (str), `include_smart_folders` (bool) | Fetches latest emails across INBOX and Mail.ru smart folders. |
 | `mail_get_body` | 🟢 Safe | `uid` (str), `folder` (str) | Extracts full email text and HTML content by message UID. |
-| `mail_send_draft` | 🟢 Safe | `to_email` (str), `subject` (str), `body` (str) | Saves an email draft to `Черновики` / `Drafts`. |
+| `mail_send_draft` | 🟢 Safe | `to_email` (str), `subject` (str), `body` (str) | Saves an email draft for human review. |
 | `mail_search_thread` | 🟢 Safe | `query` (str), `folder` (str), `limit` (int) | Searches email subject and body across specified folder. |
 | `mail_send_reply` | 🔴 **HITL** | `to_email` (str), `subject` (str), `body` (str) | Sends an email reply via SMTP TLS (Port 465). |
 | `mail_send_with_attachment`| 🔴 **HITL** | `to_email`, `subject`, `body`, `attachment_path` (str) | Sends email with local attachment via MIME multipart. |
@@ -74,14 +74,16 @@ export MAILRU_TIMEOUT="15"                # Optional (default: 15 seconds)
 export MAILRU_IMAP_HOST="imap.mail.ru"    # Optional (default: imap.mail.ru)
 export MAILRU_SMTP_HOST="smtp.mail.ru"    # Optional (default: smtp.mail.ru)
 export MAILRU_WEBDAV_HOST="https://webdav.cloud.mail.ru" # Optional
+export MAILRU_ALLOWED_ROOTS=""            # Optional (comma-separated allowed roots)
+export MAILRU_OPERATOR_NAME="ZavLab"      # Optional (operator confirmation name)
 ```
 
-### Deployment via `mcp-router`
-Configured in `/root/projects/TheNovaNodes/mcp-router/config.yaml`:
+### Deployment via `mcp-router` or MCP Client
+Example configuration in `config.yaml` or client settings:
 ```yaml
   mailru:
     transport: stdio
-    command: /root/projects/TheNovaNodes/mailru-mcp-server/mailru-mcp-server
+    command: /usr/local/bin/mailru-mcp-server
     env:
       MAILRU_USERNAME: ${MAILRU_USERNAME}
       MAILRU_APP_PASS: ${MAILRU_APP_PASS}

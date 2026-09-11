@@ -80,7 +80,7 @@ func (s *Server) registerTools() {
 	// 4. mail_send_draft
 	s.mcpServer.AddTool(
 		mcp.NewTool("mail_send_draft",
-			mcp.WithDescription("Save an email draft for ZavLab to review (No HITL required)."),
+			mcp.WithDescription("Save an email draft for human review (No HITL required)."),
 			mcp.WithString("to_email", mcp.Required(), mcp.Description("Recipient email address")),
 			mcp.WithString("subject", mcp.Required(), mcp.Description("Draft subject line")),
 			mcp.WithString("body", mcp.Required(), mcp.Description("Draft message body")),

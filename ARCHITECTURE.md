@@ -4,19 +4,19 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    Telegram Agent (Kairos)                   │
+│                    MCP Client / Gateway                      │
 └──────────────────────────────┬───────────────────────────────┘
                                │ JSON-RPC (MCP)
                                ▼
 ┌──────────────────────────────────────────────────────────────┐
-│              MCP Router Gateway (:8090)                      │
-│             /root/projects/TheNovaNodes/mcp-router           │
+│              MCP Router Gateway / Stdio Runner               │
+│                 /etc/mcp-router/config.yaml                  │
 └──────────────────────────────┬───────────────────────────────┘
                                │ stdio (JSON-RPC)
                                ▼
 ┌──────────────────────────────────────────────────────────────┐
 │            Mail.ru MCP Server (Go Binary)                    │
-│        /root/projects/TheNovaNodes/mailru-mcp-server         │
+│            /usr/local/bin/mailru-mcp-server                  │
 ├──────────────────────────────┬───────────────────────────────┤
 │    internal/mail             │    internal/webdav            │
 │  - IMAP TLS (:993)           │  - PROPFIND (XML)             │
@@ -34,8 +34,8 @@
 ## Architecture Decision Records
 
 ### ADR-1: Standardized Transport & Router Integration
-- **Context:** Individual MCP processes need multiplexing and isolation under `mcp-router`.
-- **Decision:** Operate as a standard `stdio` subprocess managed by `mcp-router.service`.
+- **Context:** Individual MCP processes need multiplexing and isolation under `mcp-router` or standard MCP hosts.
+- **Decision:** Operate as a standard `stdio` subprocess managed by process supervisors.
 - **Status:** Accepted.
 
 ### ADR-2: Enforce Human-In-The-Loop (HITL) for Destructive Operations
@@ -49,8 +49,8 @@
 - **Status:** Accepted.
 
 ### ADR-4: Workspace Path Traversal Containment
-- **Context:** `dav_download_file` could be exploited to overwrite sensitive host files (`/etc`, `/root/.ssh`).
-- **Decision:** Strict path validation restricting downloads to authorized roots (`/root/.agents`, `/root/projects`, `/tmp`, and CWD).
+- **Context:** Local file operations (`dav_download_file`, `dav_upload_file`, `mail_send_with_attachment`) could be exploited to overwrite or read sensitive host files (`/etc`, `~/.ssh`).
+- **Decision:** Strict path validation restricting filesystem operations to authorized roots (user home, CWD, temporary directory, and customizable via `MAILRU_ALLOWED_ROOTS`).
 - **Status:** Accepted.
 
 ### ADR-5: Fail-Safe Socket Timeout Doctrine
