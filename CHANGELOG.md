@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.1] - 2026-09-11
+
+### Security & Hardening
+- **IMAP TLS Downgrade Protection:** Enforced `MinVersion: tls.VersionTLS12` on `dialIMAP()`.
+- **Universal Filesystem Containment:** Extended `ValidateDownloadPath()` to `dav_upload_file` and `mail_send_with_attachment`.
+- **Configurable Operational Roots:** Added `MAILRU_ALLOWED_ROOTS` support and automatic resolution of `os.UserHomeDir()` and `os.TempDir()`.
+- **Configurable Operator Name:** Added `MAILRU_OPERATOR_NAME` support in HITL prompt templates.
+
+### Changed
+- **CI/CD FinOps Optimization:** Added `concurrency`, `timeout-minutes: 10`, `fetch-depth: 1`, `paths-ignore`, and Go caching.
+- **Documentation Anonymization:** Generalized internal system paths across `README.md`, `ARCHITECTURE.md`, and `SECURITY.md`.
+
+---
+
 ## [2.0.0] - 2026-09-04
 
 ### Added

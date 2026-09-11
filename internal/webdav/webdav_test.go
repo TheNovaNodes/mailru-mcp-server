@@ -64,8 +64,15 @@ func TestWebDAV_PathTraversal(t *testing.T) {
 
 func TestWebDAV_AllowedRoots(t *testing.T) {
 	roots := AllowedRoots()
-	if len(roots) < 3 {
-		t.Fatalf("expected at least 3 roots, got %v", roots)
+	if len(roots) < 2 {
+		t.Fatalf("expected at least 2 default roots, got %v", roots)
+	}
+
+	// Test custom MAILRU_ALLOWED_ROOTS
+	t.Setenv("MAILRU_ALLOWED_ROOTS", "/custom/one, /custom/two")
+	customRoots := AllowedRoots()
+	if len(customRoots) != 2 || customRoots[0] != "/custom/one" || customRoots[1] != "/custom/two" {
+		t.Fatalf("expected custom roots [/custom/one, /custom/two], got %v", customRoots)
 	}
 }
 

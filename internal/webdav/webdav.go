@@ -15,18 +15,50 @@ import (
 	"time"
 )
 
-// AllowedRoots returns the default permissible download roots for security containment.
+// AllowedRoots returns the permissible roots for filesystem access containment.
 func AllowedRoots() []string {
-	cwd, err := os.Getwd()
-	roots := []string{
-		"/root/.agents",
-		"/root/projects",
-		"/tmp",
+	if custom := os.Getenv("MAILRU_ALLOWED_ROOTS"); custom != "" {
+		var roots []string
+		for _, r := range strings.Split(custom, ",") {
+			r = strings.TrimSpace(r)
+			if r != "" {
+				roots = append(roots, r)
+			}
+		}
+		if len(roots) > 0 {
+			return roots
+		}
 	}
-	if err == nil && cwd != "" {
+
+	roots := []string{os.TempDir()}
+
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		roots = append(roots, home)
+	}
+
+	if cwd, err := os.Getwd(); err == nil && cwd != "" {
 		roots = append(roots, cwd)
 	}
-	return roots
+
+	// Ecosystem backwards compatibility paths if present
+	for _, p := range []string{"/root/.agents", "/root/projects"} {
+		if info, err := os.Stat(p); err == nil && info.IsDir() {
+			roots = append(roots, p)
+		}
+	}
+
+	// Deduplicate roots
+	seen := make(map[string]bool)
+	var deduped []string
+	for _, r := range roots {
+		clean := filepath.Clean(r)
+		if !seen[clean] {
+			seen[clean] = true
+			deduped = append(deduped, clean)
+		}
+	}
+
+	return deduped
 }
 
 // ValidateDownloadPath checks if a target local path falls within authorized roots.
