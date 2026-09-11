@@ -200,6 +200,11 @@ func (s *Server) handleExecutePendingAction(ctx context.Context, req mcp.CallToo
 		subj, _ := act.Details["subject"].(string)
 		body, _ := act.Details["body"].(string)
 		att, _ := act.Details["attachment"].(string)
+		if att != "" {
+			if _, err := webdav.ValidateDownloadPath(att, s.allowedRoots); err != nil {
+				return mcp.NewToolResultError("❌ Security Error: " + err.Error()), nil
+			}
+		}
 		if err := s.mailCli.SendEmail(ctx, to, subj, body, att); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("❌ Execution failed: %v", err)), nil
 		}
@@ -227,6 +232,11 @@ func (s *Server) handleExecutePendingAction(ctx context.Context, req mcp.CallToo
 	case "dav_upload":
 		localPath, _ := act.Details["local_path"].(string)
 		remotePath, _ := act.Details["remote_path"].(string)
+		if localPath != "" {
+			if _, err := webdav.ValidateDownloadPath(localPath, s.allowedRoots); err != nil {
+				return mcp.NewToolResultError("❌ Security Error: " + err.Error()), nil
+			}
+		}
 		if err := s.davCli.UploadFile(ctx, localPath, remotePath); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("❌ Execution failed: %v", err)), nil
 		}
@@ -387,6 +397,12 @@ func (s *Server) handleMailSendWithAttachment(ctx context.Context, req mcp.CallT
 	body := req.GetString("body", "")
 	att := req.GetString("attachment_path", "")
 
+	if att != "" {
+		if _, err := webdav.ValidateDownloadPath(att, s.allowedRoots); err != nil {
+			return mcp.NewToolResultText("❌ Security Error: " + err.Error()), nil
+		}
+	}
+
 	notice := s.hitlMgr.Request("mail_send", map[string]any{
 		"to":         to,
 		"subject":    subj,
@@ -443,6 +459,13 @@ func (s *Server) handleDavCreateFolder(ctx context.Context, req mcp.CallToolRequ
 func (s *Server) handleDavUploadFile(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	localPath := req.GetString("local_path", "")
 	remotePath := req.GetString("remote_path", "")
+
+	if localPath != "" {
+		if _, err := webdav.ValidateDownloadPath(localPath, s.allowedRoots); err != nil {
+			return mcp.NewToolResultText("❌ Security Error: " + err.Error()), nil
+		}
+	}
+
 	notice := s.hitlMgr.Request("dav_upload", map[string]any{
 		"local_path":  localPath,
 		"remote_path": remotePath,

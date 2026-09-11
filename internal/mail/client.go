@@ -69,6 +69,7 @@ func (c *LiveClient) dialIMAP() (*imapclient.Client, error) {
 	}
 	tlsConn, err := tls.DialWithDialer(dialer, "tcp", net.JoinHostPort(host, port), &tls.Config{
 		ServerName: host,
+		MinVersion: tls.VersionTLS12,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("IMAP TLS connection failed: %w", err)
