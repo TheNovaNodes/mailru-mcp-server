@@ -27,7 +27,7 @@
 - **Decision:** As established in ADR-3, Mail.ru CalDAV/CardDAV remains amputated. Nextcloud (`nextcloud-mcp-control` / `nextcloud-gateway`) is the ecosystem's single source of truth for calendars and contacts.
 
 ## ⏭️ Next Actions for Next Shift
-1. **Live Production Rebuild:** Recompile binary `/root/projects/TheNovaNodes/mailru-mcp-server/mailru-mcp-server` and ensure `mcp-router` restarts smoothly.
+1. **Live Production Rebuild:** Recompile binary `~/mailru-mcp-server/mailru-mcp-server` and ensure `mcp-router` restarts smoothly.
 2. **Autonomous Polling Bridge:** Review Mail.ru IMAP push/poll integration for proactive notification dispatch into Telegram channels.
 
 ---

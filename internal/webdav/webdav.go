@@ -41,7 +41,7 @@ func AllowedRoots() []string {
 	}
 
 	// Ecosystem backwards compatibility paths if present
-	for _, p := range []string{"/root/.agents", "/root/projects"} {
+	for _, p := range []string{"/tmp/workspace"} {
 		if info, err := os.Stat(p); err == nil && info.IsDir() {
 			roots = append(roots, p)
 		}
