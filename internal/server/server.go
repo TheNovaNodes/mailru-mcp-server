@@ -80,10 +80,11 @@ func (s *Server) registerTools() {
 	// 4. mail_send_draft
 	s.mcpServer.AddTool(
 		mcp.NewTool("mail_send_draft",
-			mcp.WithDescription("Save an email draft for human review (No HITL required)."),
-			mcp.WithString("to_email", mcp.Required(), mcp.Description("Recipient email address")),
-			mcp.WithString("subject", mcp.Required(), mcp.Description("Draft subject line")),
-			mcp.WithString("body", mcp.Required(), mcp.Description("Draft message body")),
+			mcp.WithDescription("Save an email draft for human review (No HITL required). Supports optional attachments."),
+			mcp.WithString("to_email", mcp.Description("Recipient email address (optional for draft)")),
+			mcp.WithString("subject", mcp.Description("Draft subject line")),
+			mcp.WithString("body", mcp.Description("Draft message body (optional)")),
+			mcp.WithString("attachment_path", mcp.Description("Optional local path or comma-separated list of paths to attachments")),
 		),
 		s.handleMailSendDraft,
 	)
@@ -320,9 +321,26 @@ func (s *Server) handleMailSendDraft(ctx context.Context, req mcp.CallToolReques
 	to := req.GetString("to_email", "")
 	subj := req.GetString("subject", "")
 	body := req.GetString("body", "")
+	attStr := req.GetString("attachment_path", "")
 
-	if err := s.mailCli.SaveDraft(ctx, to, subj, body); err != nil {
+	var atts []string
+	if attStr != "" {
+		for _, p := range strings.Split(attStr, ",") {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				if _, err := webdav.ValidateDownloadPath(p, s.allowedRoots); err != nil {
+					return mcp.NewToolResultError("❌ Security Error: " + err.Error()), nil
+				}
+				atts = append(atts, p)
+			}
+		}
+	}
+
+	if err := s.mailCli.SaveDraft(ctx, to, subj, body, atts...); err != nil {
 		return mcp.NewToolResultText(fmt.Sprintf("Error saving draft: %v", err)), nil
+	}
+	if len(atts) > 0 {
+		return mcp.NewToolResultText(fmt.Sprintf("✅ Draft saved successfully in Drafts/Черновики with %d attachment(s).", len(atts))), nil
 	}
 	return mcp.NewToolResultText(fmt.Sprintf("✅ Draft to '%s' saved successfully in Drafts/Черновики.", to)), nil
 }

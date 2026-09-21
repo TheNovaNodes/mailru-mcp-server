@@ -418,7 +418,7 @@ func (c *LiveClient) MoveMessage(ctx context.Context, uid string, toFolder strin
 	return err
 }
 
-func (c *LiveClient) SaveDraft(ctx context.Context, toEmail, subject, body string) error {
+func (c *LiveClient) SaveDraft(ctx context.Context, toEmail, subject, body string, attachmentPaths ...string) error {
 	client, err := c.dialIMAP()
 	if err != nil {
 		return err
@@ -428,7 +428,7 @@ func (c *LiveClient) SaveDraft(ctx context.Context, toEmail, subject, body strin
 		_ = client.Close()
 	}()
 
-	rawMsg := BuildMIMEMessage(c.Username, toEmail, subject, body, "")
+	rawMsg := BuildMIMEMessage(c.Username, toEmail, subject, body, attachmentPaths...)
 
 	// Append to 'Черновики' (Mail.ru default), fallback to 'Drafts'
 	appendOpts := &imap.AppendOptions{
@@ -451,33 +451,62 @@ func (c *LiveClient) SaveDraft(ctx context.Context, toEmail, subject, body strin
 	return cmd2.Close()
 }
 
-// BuildMIMEMessage builds an RFC822 compliant message with optional attachment.
-func BuildMIMEMessage(from, to, subject, body, attachmentPath string) []byte {
+// BuildMIMEMessage builds an RFC822 compliant message with optional attachments.
+func BuildMIMEMessage(from, to, subject, body string, attachmentPaths ...string) []byte {
 	var buf bytes.Buffer
 	boundary := fmt.Sprintf("boundary_%d", time.Now().UnixNano())
 
 	buf.WriteString(fmt.Sprintf("From: %s\r\n", from))
-	buf.WriteString(fmt.Sprintf("To: %s\r\n", to))
+	if to != "" {
+		buf.WriteString(fmt.Sprintf("To: %s\r\n", to))
+	}
 	buf.WriteString(fmt.Sprintf("Subject: =?UTF-8?B?%s?=\r\n", base64.StdEncoding.EncodeToString([]byte(subject))))
 	buf.WriteString(fmt.Sprintf("Date: %s\r\n", time.Now().Format(time.RFC1123Z)))
 	buf.WriteString("MIME-Version: 1.0\r\n")
 
-	if attachmentPath != "" && fileExists(attachmentPath) {
-		buf.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=\"%s\"\r\n\r\n", boundary))
-		buf.WriteString(fmt.Sprintf("--%s\r\n", boundary))
-		buf.WriteString("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
-		buf.WriteString(body)
-		buf.WriteString("\r\n\r\n")
+	var validAtts []string
+	for _, p := range attachmentPaths {
+		if p != "" && fileExists(p) {
+			validAtts = append(validAtts, p)
+		}
+	}
 
-		// Attachment
-		attBytes, err := os.ReadFile(attachmentPath)
-		if err == nil {
-			filename := filepath.Base(attachmentPath)
+	if len(validAtts) > 0 {
+		buf.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=\"%s\"\r\n\r\n", boundary))
+		if body != "" {
 			buf.WriteString(fmt.Sprintf("--%s\r\n", boundary))
-			buf.WriteString(fmt.Sprintf("Content-Type: application/octet-stream; name=\"%s\"\r\n", filename))
-			buf.WriteString("Content-Transfer-Encoding: base64\r\n")
-			buf.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n\r\n", filename))
-			
+			buf.WriteString("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
+			buf.WriteString(body)
+			buf.WriteString("\r\n\r\n")
+		}
+
+		for _, attPath := range validAtts {
+			attBytes, err := os.ReadFile(attPath)
+			if err != nil {
+				continue
+			}
+			filename := filepath.Base(attPath)
+			isASCII := true
+			for i := 0; i < len(filename); i++ {
+				if filename[i] > 127 {
+					isASCII = false
+					break
+				}
+			}
+
+			if isASCII {
+				buf.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+				buf.WriteString(fmt.Sprintf("Content-Type: application/octet-stream; name=\"%s\"\r\n", filename))
+				buf.WriteString("Content-Transfer-Encoding: base64\r\n")
+				buf.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n\r\n", filename))
+			} else {
+				encodedFn := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(filename)))
+				buf.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+				buf.WriteString(fmt.Sprintf("Content-Type: application/pdf; name=\"%s\"\r\n", encodedFn))
+				buf.WriteString("Content-Transfer-Encoding: base64\r\n")
+				buf.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n\r\n", encodedFn))
+			}
+
 			encoded := base64.StdEncoding.EncodeToString(attBytes)
 			for len(encoded) > 76 {
 				buf.WriteString(encoded[:76] + "\r\n")
