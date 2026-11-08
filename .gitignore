@@ -11,6 +11,7 @@ __pycache__/
 htmlcov/
 mailru-mcp-server
 bin/
+.deploy_rollback_capsule/
 *.out
 coverage.out
 *.prof
