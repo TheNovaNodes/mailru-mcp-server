@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.0] - 2026-11-08
+
+### Added
+- **Canonical 5-Echelon Deployment Tool (`scripts/deploy.sh`):** Implemented automated deployment pipeline with Rollback Capsule, L1 test gating, atomic binary swap, commit SHA verification, and stdio JSON-RPC smoke testing (#26).
+- **Identity & Truth Probe Support:** Added `-ldflags` injection of `CommitSHA` and `Version` with `--version` CLI probe.
+
+---
+
 ## [2.0.1] - 2026-09-11
 
 ### Security & Hardening

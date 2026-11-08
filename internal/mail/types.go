@@ -46,6 +46,6 @@ type Client interface {
 	SearchEmails(ctx context.Context, query string, folder string) ([]EmailSearchItem, error)
 	GetEmailBody(ctx context.Context, uid string, folder string) (*EmailDetails, error)
 	MoveMessage(ctx context.Context, uid string, toFolder string, fromFolder string) error
-	SaveDraft(ctx context.Context, toEmail, subject, body string) error
+	SaveDraft(ctx context.Context, toEmail, subject, body string, attachmentPaths ...string) error
 	SendEmail(ctx context.Context, toEmail, subject, body, attachmentPath string) error
 }

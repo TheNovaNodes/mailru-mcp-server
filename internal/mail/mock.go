@@ -72,7 +72,7 @@ func (m *MockClient) MoveMessage(ctx context.Context, uid string, toFolder strin
 	return nil
 }
 
-func (m *MockClient) SaveDraft(ctx context.Context, toEmail, subject, body string) error {
+func (m *MockClient) SaveDraft(ctx context.Context, toEmail, subject, body string, attachmentPaths ...string) error {
 	if m.ShouldFail {
 		return errors.New("mock save draft error")
 	}
